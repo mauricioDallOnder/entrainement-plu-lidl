@@ -479,7 +479,7 @@ const ITEMS = [
   {code:3,  name:"Concombre",              cat:"fl", img:"comcombre.webp"},
   {code:4,  name:"Courgette vrac",         cat:"fl", img:"Courgette_vrac.webp"},
   {code:5,  name:"Melon charentais",       cat:"fl", img:"Melon_charentais.jpg"},
-  {code:6,  name:"Avocat",                 cat:"fl", img:"avocato.webp"},
+  {code:6,  name:"Avocat",                 cat:"fl", img:""},
   {code:7,  name:"Batavia",                cat:"fl", img:"salade_batavia.webp"},
   {code:8,  name:"Kiwi",                    cat:"fl", img:"kiwis.jpeg"},
   {code:9,  name:"Radis",                  cat:"fl", img:"radis.jpg"},
@@ -515,7 +515,7 @@ const ITEMS = [
   {code:606,name:"Mini beignet",           cat:"pain", img:"Mini_beignet.jpg"},
   {code:627,name:"Croustille",             cat:"pain", img:"Croustille.webp"},
   {code:635,name:"Donut",                  cat:"pain", img:"Donut.jpeg"},
-  {code:640,name:"Feuilleté Vache qui rit",cat:"pain", img:"Feuillete_Vache.jpg"},
+  {code:640,name:"Feuilleté Vache qui rit",cat:"pain", img:"Feuilleté_Vache_qui_rit.jpg"},
   {code:664,name:"Empanadas bœuf",         cat:"pain", img:"Empanadas_bœuf.jpeg"},
 ];
 
@@ -694,10 +694,12 @@ function renderRight(){
 }
 
 function buildCodeOptions(correct){
-  // 2 codes distracteurs tirés du pool sélectionné
-  const others = state.pool.filter(i=>i.code!==correct.code);
-  const wrong = others.sort(()=>Math.random()-0.5).slice(0,2).map(i=>i.code);
-  return [correct.code,...wrong].sort(()=>Math.random()-0.5);
+  // distracteurs : les codes numériquement les plus proches du bon code
+  const others = state.pool.filter(i=>i.code!==correct.code)
+                  .sort((a,b)=>Math.abs(a.code-correct.code)-Math.abs(b.code-correct.code));
+  const near = others.slice(0, Math.min(5, others.length)); // petit pool de proches
+  const wrong = shuffle(near).slice(0,2).map(i=>i.code);
+  return shuffle([correct.code,...wrong]);
 }
 
 function chooseCode(btn,code){
