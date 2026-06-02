@@ -103,6 +103,13 @@
     box-shadow:0 5px 0 #5a911a;transition:.1s;
   }
   .big-btn:active{transform:translateY(4px);box-shadow:0 1px 0 #5a911a;}
+  .pdf-btn{
+    background:#fff;color:var(--lidl-blue-dark);border:2px solid var(--lidl-blue-darker);
+    font-size:15px;font-weight:700;padding:12px 22px;border-radius:8px;cursor:pointer;
+    transition:.12s;
+  }
+  .pdf-btn:hover{background:#eef3f9;}
+  .pdf-btn:disabled{opacity:.6;cursor:wait;}
 
   /* ---------- GAME ---------- */
   .game{display:none;}
@@ -245,7 +252,7 @@
   <!-- ===== MENU ===== -->
   <div id="menu" class="menu">
     <h2>Bienvenue à l'entraînement PLU</h2>
-    <p>Choisissez un mode de jeu, puis les catégories à réviser. Vous avez <b>30 secondes</b> par article. Bonne chance! </p>
+    <p>Choisissez un mode de jeu, puis les catégories à réviser. Vous avez <b>30 secondes</b> par article. Bonne chance, futur·e agent polyvalent·e !</p>
 
     <div class="modes">
       <div class="mode-card" data-mode="code">
@@ -261,7 +268,7 @@
       <div class="mode-card" data-mode="mix">
         <div class="ic">🔀</div>
         <h3>Mode mixte</h3>
-        <span>Aléatoire : tantôt le code, tantôt l'article !</span>
+        <span>Aléatoire : tantôt le code, tantôt l'article. Le vrai défi !</span>
       </div>
     </div>
 
@@ -275,6 +282,7 @@
 
     <div class="start-row">
       <button class="big-btn" id="startBtn">Commencer ▶</button>
+      <button class="pdf-btn" id="pdfBtn">📄 Télécharger la liste (PDF)</button>
     </div>
     <p style="font-size:13px;opacity:.75;">Mode sélectionné : <b id="modeLabel">Trouver le code</b></p>
   </div>
@@ -351,6 +359,8 @@
 
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script>
 /* ============ DONNÉES PLU ============ */
 const IMG_DIR = "imagens/";
@@ -698,6 +708,141 @@ document.addEventListener("keydown",(e)=>{
   else if(e.key==="Backspace"){ state.input=state.input.slice(0,-1); updateDisplay(); }
   else if(e.key==="Escape") pressKey("C");
 });
+
+/* ============ EXPORT PDF ============ */
+const CATS = [
+  {key:"fl",   title:"Fruits & Légumes"},
+  {key:"pain", title:"Pains"},
+];
+
+// charge une image et la convertit en dataURL (fond blanc, JPEG)
+function loadImageAsDataURL(src){
+  return new Promise((resolve)=>{
+    const img=new Image();
+    img.crossOrigin="anonymous";
+    img.onload=()=>{
+      try{
+        const c=document.createElement("canvas");
+        c.width=img.naturalWidth||img.width;
+        c.height=img.naturalHeight||img.height;
+        const ctx=c.getContext("2d");
+        ctx.fillStyle="#ffffff";
+        ctx.fillRect(0,0,c.width,c.height);
+        ctx.drawImage(img,0,0);
+        resolve({dataURL:c.toDataURL("image/jpeg",0.82), w:c.width, h:c.height});
+      }catch(e){ resolve(null); }
+    };
+    img.onerror=()=>resolve(null);
+    img.src=src;
+  });
+}
+
+$("pdfBtn").addEventListener("click", generatePDF);
+
+async function generatePDF(){
+  const btn=$("pdfBtn");
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    alert("La librairie PDF n'a pas pu être chargée. Vérifiez votre connexion internet.");
+    return;
+  }
+  const old=btn.textContent;
+  btn.disabled=true; btn.textContent="⏳ Génération en cours…";
+
+  try{
+    // précharge toutes les images
+    const imgMap={};
+    await Promise.all(ITEMS.map(async it=>{
+      if(it.img){
+        const r=await loadImageAsDataURL(IMG_DIR+it.img);
+        if(r) imgMap[it.code]=r;
+      }
+    }));
+
+    const { jsPDF }=window.jspdf;
+    const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    const pageW=doc.internal.pageSize.getWidth();
+
+    // --- En-tête ---
+    doc.setFillColor(0,80,170);
+    doc.rect(0,0,pageW,26,"F");
+    doc.setFillColor(255,229,0);
+    doc.rect(0,26,pageW,2,"F");
+    doc.setTextColor(255,255,255);
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(18);
+    doc.text("LIDL · Les Codes PLU à connaître",pageW/2,13,{align:"center"});
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(10);
+    const today=new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"long",year:"numeric"});
+    doc.text("Fiche de révision — généré le "+today,pageW/2,21,{align:"center"});
+
+    let startY=34;
+
+    CATS.forEach(cat=>{
+      const items=ITEMS.filter(i=>i.cat===cat.key).sort((a,b)=>a.code-b.code);
+      if(items.length===0) return;
+
+      // titre de section
+      doc.setTextColor(0,80,170);
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(14);
+      doc.text(cat.title,14,startY);
+      startY+=3;
+
+      doc.autoTable({
+        startY:startY,
+        head:[["Code","Photo","Article"]],
+        body:items.map(it=>[String(it.code),"",it.name]),
+        theme:"grid",
+        margin:{left:14,right:14},
+        styles:{fontSize:11,valign:"middle",cellPadding:2,minCellHeight:20,
+                lineColor:[200,200,200],lineWidth:0.2,textColor:[40,40,40]},
+        headStyles:{fillColor:[0,80,170],textColor:255,fontStyle:"bold",
+                    halign:"center",fontSize:11,minCellHeight:9},
+        alternateRowStyles:{fillColor:[244,247,250]},
+        columnStyles:{
+          0:{halign:"center",cellWidth:24,fontStyle:"bold",fontSize:15,textColor:[0,80,170]},
+          1:{cellWidth:34,halign:"center"},
+          2:{cellWidth:"auto",fontStyle:"bold",fontSize:12}
+        },
+        didDrawCell:function(data){
+          if(data.section==="body" && data.column.index===1){
+            const it=items[data.row.index];
+            const im=it && imgMap[it.code];
+            if(im){
+              const cell=data.cell;
+              const maxW=cell.width-3, maxH=cell.height-3;
+              const ratio=Math.min(maxW/im.w, maxH/im.h);
+              const w=im.w*ratio, h=im.h*ratio;
+              const x=cell.x+(cell.width-w)/2;
+              const y=cell.y+(cell.height-h)/2;
+              try{ doc.addImage(im.dataURL,"JPEG",x,y,w,h); }catch(e){}
+            }
+          }
+        },
+        didDrawPage:function(){
+          // pied de page
+          const ph=doc.internal.pageSize.getHeight();
+          doc.setFontSize(8);
+          doc.setTextColor(120,120,120);
+          doc.setFont("helvetica","normal");
+          const page=doc.internal.getNumberOfPages();
+          doc.text("Entraînement Codes PLU — Lidl",14,ph-6);
+          doc.text("Page "+page,pageW-14,ph-6,{align:"right"});
+        }
+      });
+
+      startY=doc.lastAutoTable.finalY+12;
+    });
+
+    doc.save("codes-plu-lidl.pdf");
+  }catch(err){
+    console.error(err);
+    alert("Une erreur est survenue lors de la génération du PDF.");
+  }finally{
+    btn.disabled=false; btn.textContent=old;
+  }
+}
 </script>
 </body>
 </html>
