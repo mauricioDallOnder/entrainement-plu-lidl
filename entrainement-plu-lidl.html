@@ -193,6 +193,19 @@
   .opt-btn:hover{background:var(--lidl-blue-dark);}
   .opt-btn.correct{background:var(--good);border-color:var(--good);}
   .opt-btn.wrong{background:var(--bad);border-color:var(--bad);}
+  .ask-q{font-weight:700;color:#222;text-align:center;font-size:16px;margin-bottom:4px;}
+
+  /* code options (pédagogique) */
+  .code-options{display:flex;flex-direction:column;gap:14px;justify-content:center;flex:1;}
+  .code-opt{
+    background:var(--key-blue);color:#fff;border:3px solid #fff;border-radius:12px;
+    padding:22px 12px;font-size:38px;font-weight:800;letter-spacing:2px;cursor:pointer;
+    transition:.12s;box-shadow:0 4px 10px rgba(0,0,0,.15);
+  }
+  .code-opt:hover{background:var(--key-blue-hover);transform:translateY(-2px);}
+  .code-opt:active{transform:scale(.97);}
+  .code-opt.correct{background:var(--good);border-color:var(--good);}
+  .code-opt.wrong{background:var(--bad);border-color:var(--bad);}
 
   /* feedback */
   .feedback{
@@ -311,7 +324,7 @@
       <div class="mode-card" data-mode="pedago">
         <div class="ic">🎓</div>
         <h3>Mode pédagogique</h3>
-        <span>Apprentissage progressif : 10 articles à la fois, sans chrono. Réussissez pour débloquer le niveau suivant.</span>
+        <span>Apprentissage progressif : l'article s'affiche, choisissez le bon code parmi 3. 10 articles par niveau, sans chrono.</span>
       </div>
     </div>
 
@@ -576,8 +589,8 @@ function nextQuestion(){
 
 function renderVisual(){
   const v=$("visual");
-  if(state.currentType==="code"){
-    // show article -> type the code
+  if(state.currentType==="code" || state.currentType==="pickcode"){
+    // show article -> (taper / choisir) le code
     const it=state.current;
     const media = it.img
       ? `<img class="prod-img" src="${IMG_DIR}${it.img}" alt="${it.name}"
@@ -617,10 +630,23 @@ function renderRight(){
       btn.addEventListener("click",()=>pressKey(btn.dataset.k));
     });
     updateDisplay();
+  } else if(state.currentType==="pickcode"){
+    // pédagogique : choisir le bon code parmi 3
+    const opts = buildCodeOptions(state.current);
+    r.innerHTML = `<div class="ask-q">Quel est le bon code ?</div>
+      <div class="code-options" id="opts"></div>`;
+    const box=$("opts");
+    opts.forEach(code=>{
+      const b=document.createElement("button");
+      b.className="code-opt";
+      b.textContent=code;
+      b.addEventListener("click",()=>chooseCode(b,code));
+      box.appendChild(b);
+    });
   } else {
     // options
     const opts = buildOptions(state.current);
-    r.innerHTML = `<div style="font-weight:700;color:#222;text-align:center;font-size:15px;">Quel article ?</div>
+    r.innerHTML = `<div class="ask-q">Quel article ?</div>
       <div class="options" id="opts"></div>`;
     const box=$("opts");
     opts.forEach(o=>{
@@ -630,6 +656,27 @@ function renderRight(){
       b.addEventListener("click",()=>chooseOption(b,o));
       box.appendChild(b);
     });
+  }
+}
+
+function buildCodeOptions(correct){
+  // 2 codes distracteurs tirés du pool sélectionné
+  const others = state.pool.filter(i=>i.code!==correct.code);
+  const wrong = others.sort(()=>Math.random()-0.5).slice(0,2).map(i=>i.code);
+  return [correct.code,...wrong].sort(()=>Math.random()-0.5);
+}
+
+function chooseCode(btn,code){
+  if(state.answered||state.paused) return;
+  if(code===state.current.code){
+    btn.classList.add("correct");
+    handleResult(true);
+  } else {
+    btn.classList.add("wrong");
+    document.querySelectorAll("#opts .code-opt").forEach(b=>{
+      if(b.textContent===String(state.current.code)) b.classList.add("correct");
+    });
+    handleResult(false);
   }
 }
 
@@ -755,7 +802,7 @@ function nextPedagoQuestion(){
   state.answered=false;
   state.input="";
   state.current=p.order[p.pos];
-  state.currentType="code"; // toujours : image -> taper le code
+  state.currentType="pickcode"; // image -> choisir le bon code parmi 3
   $("feedback").textContent="";
   $("feedback").className="feedback";
   renderVisual();
@@ -901,6 +948,15 @@ $("menuBtn").addEventListener("click",()=>{
 /* keyboard support for code mode */
 document.addEventListener("keydown",(e)=>{
   if(!gameEl.classList.contains("active")) return;
+  if(state.currentType==="pickcode"){
+    if(state.answered||state.paused) return;
+    if(e.key==="1"||e.key==="2"||e.key==="3"){
+      const btns=document.querySelectorAll("#opts .code-opt");
+      const b=btns[(+e.key)-1];
+      if(b) b.click();
+    }
+    return;
+  }
   if(state.currentType!=="code") return;
   if(e.key>="0"&&e.key<="9") pressKey(e.key);
   else if(e.key==="Enter") pressKey("OK");
