@@ -231,6 +231,44 @@
   .paused-overlay.show{display:flex;}
   .paused-overlay h3{font-size:40px;}
 
+  /* level overlay (pédagogique) */
+  .level-overlay{
+    position:absolute;inset:0;background:rgba(0,30,70,.92);
+    display:none;align-items:center;justify-content:center;
+    border-radius:0 0 6px 6px;z-index:20;padding:20px;
+  }
+  .level-overlay.show{display:flex;}
+  .level-card{
+    background:#fff;color:var(--lidl-blue-dark);border-radius:14px;
+    padding:30px 36px;text-align:center;box-shadow:0 12px 30px rgba(0,0,0,.4);
+    max-width:440px;width:100%;
+  }
+  .level-card .lvl-emoji{font-size:56px;line-height:1;}
+  .level-card h3{font-size:26px;margin:10px 0 6px;}
+  .level-card .lvl-score{font-size:40px;font-weight:800;color:var(--lidl-blue);margin:6px 0;}
+  .level-card p{font-size:15px;color:#555;line-height:1.5;margin-bottom:18px;}
+  .lvl-btns{display:flex;flex-direction:column;gap:10px;align-items:stretch;}
+  .lvl-btns button{
+    border:none;border-radius:8px;padding:13px 18px;font-size:16px;font-weight:700;cursor:pointer;transition:.1s;
+  }
+  .lvl-btns .next{background:var(--plu-green);color:#063;box-shadow:0 4px 0 #5a911a;}
+  .lvl-btns .next:active{transform:translateY(4px);box-shadow:0 0 0 #5a911a;}
+  .lvl-btns .retry{background:var(--lidl-blue);color:#fff;}
+  .lvl-btns .retry:hover{background:var(--lidl-blue-dark);}
+  .lvl-btns .menu{background:#e4e7eb;color:#333;}
+  .lvl-btns .menu:hover{background:#d6dadf;}
+
+  /* progress bar for levels */
+  .level-progress{
+    background:var(--lidl-blue-darker);border-radius:30px;padding:6px 16px;
+    display:flex;align-items:center;gap:12px;font-size:14px;font-weight:700;flex-wrap:wrap;
+  }
+  .level-progress .bar{
+    flex:1;min-width:120px;height:10px;background:#ffffff33;border-radius:10px;overflow:hidden;
+  }
+  .level-progress .bar span{display:block;height:100%;background:var(--plu-green);width:0;transition:width .25s;}
+  .level-progress .lvl-tag{color:#ffe500;}
+
   @media(max-width:760px){
     .card{flex-direction:column;}
     .right{width:100%;}
@@ -270,6 +308,11 @@
         <h3>Mode mixte</h3>
         <span>Aléatoire : tantôt le code, tantôt l'article. Le vrai défi !</span>
       </div>
+      <div class="mode-card" data-mode="pedago">
+        <div class="ic">🎓</div>
+        <h3>Mode pédagogique</h3>
+        <span>Apprentissage progressif : 10 articles à la fois, sans chrono. Réussissez pour débloquer le niveau suivant.</span>
+      </div>
     </div>
 
     <div>
@@ -290,8 +333,15 @@
   <!-- ===== GAME ===== -->
   <div id="game" class="game">
     <div class="game-head">
-      <div class="score-pill">Score : <b id="scoreNow">0</b> &nbsp;|&nbsp; Q<span id="qNum">1</span></div>
-      <div class="timer-wrap">
+      <div class="score-pill" id="scorePill">Score : <b id="scoreNow">0</b> &nbsp;|&nbsp; Q<span id="qNum">1</span></div>
+      <div class="level-progress" id="levelProgress" style="display:none;flex:1;">
+        <span class="lvl-tag" id="lvlTag">Niveau 1</span>
+        <div class="bar"><span id="lvlBar"></span></div>
+        <span id="lvlCount">0 / 10</span>
+        <span>·</span>
+        <span>✓ <b id="lvlGood" style="color:#c6ff7a;">0</b></span>
+      </div>
+      <div class="timer-wrap" id="timerWrap">
         <div class="ring">
           <svg width="74" height="74">
             <circle cx="37" cy="37" r="32" stroke="#ffffff33" stroke-width="6" fill="none"/>
@@ -336,6 +386,16 @@
       <h3>⏸ En pause</h3>
       <button class="big-btn" id="resumeBtn">Reprendre ▶</button>
     </div>
+
+    <div class="level-overlay" id="levelOverlay">
+      <div class="level-card">
+        <div class="lvl-emoji" id="lvlEmoji">🎯</div>
+        <h3 id="lvlTitle">Niveau réussi !</h3>
+        <div class="lvl-score" id="lvlScore">8 / 10</div>
+        <p id="lvlMsg"></p>
+        <div class="lvl-btns" id="lvlBtns"></div>
+      </div>
+    </div>
   </div>
 
   <!-- ===== RESULTS ===== -->
@@ -371,7 +431,7 @@ const ITEMS = [
   {code:3,  name:"Concombre",              cat:"fl", img:"comcombre.webp"},
   {code:4,  name:"Courgette vrac",         cat:"fl", img:"Courgette_vrac.webp"},
   {code:5,  name:"Melon charentais",       cat:"fl", img:"Melon_charentais.jpg"},
-  {code:6,  name:"Avocat",                 cat:"fl", img:"avocato.webp"},
+  {code:6,  name:"Avocat",                 cat:"fl", img:""},
   {code:7,  name:"Batavia",                cat:"fl", img:"salade_batavia.webp"},
   {code:8,  name:"Kiwi",                    cat:"fl", img:"kiwis.jpeg"},
   {code:9,  name:"Radis",                  cat:"fl", img:"radis.jpg"},
@@ -424,9 +484,13 @@ let state = {
   paused:false,
   answered:false,
   score:0, good:0, bad:0, q:0,
+  // pédagogique
+  pedago:null, // {levels:[[item,...]], idx, order:[item,...], pos, correct}
 };
 const TIME_LIMIT = 30;
 const RING_LEN = 201;
+const LEVEL_SIZE = 10;       // articles par niveau
+const PASS_RATIO = 0.8;      // 80% pour débloquer le niveau suivant
 
 /* ============ ÉLÉMENTS ============ */
 const $ = id => document.getElementById(id);
@@ -462,8 +526,24 @@ function startGame(){
   state.score=0; state.good=0; state.bad=0; state.q=0;
   menuEl.style.display="none";
   resultsEl.classList.remove("active");
+  $("levelOverlay").classList.remove("show");
+  $("pausedOverlay").classList.remove("show");
   gameEl.classList.add("active");
-  nextQuestion();
+
+  if(state.mode==="pedago"){
+    // en-tête : barre de niveau, pas de chrono
+    $("timerWrap").style.display="none";
+    $("scorePill").style.display="none";
+    $("levelProgress").style.display="flex";
+    $("quitBtn").textContent="↩ Quitter le mode";
+    setupPedago();
+  } else {
+    $("timerWrap").style.display="flex";
+    $("scorePill").style.display="block";
+    $("levelProgress").style.display="none";
+    $("quitBtn").textContent="⏹ Terminer & voir le score";
+    nextQuestion();
+  }
 }
 
 function pickItem(){
@@ -601,6 +681,24 @@ function handleResult(ok){
   state.answered=true;
   stopTimer();
   const fb=$("feedback");
+
+  // ----- mode pédagogique -----
+  if(state.mode==="pedago"){
+    if(ok){
+      state.pedago.correct++;
+      fb.textContent="✓ Correct ! Bravo 👏";
+      fb.className="feedback good";
+    } else {
+      fb.textContent="✗ Faux — le bon code était "+state.current.code+". On retient !";
+      fb.className="feedback bad";
+    }
+    state.pedago.pos++;
+    updatePedagoHeader();
+    setTimeout(()=>{ if(gameEl.classList.contains("active")) nextPedagoQuestion(); }, ok?800:1600);
+    return;
+  }
+
+  // ----- modes chronométrés -----
   if(ok){
     state.score+=10; state.good++;
     fb.textContent="✓ Correct ! +10";
@@ -615,6 +713,104 @@ function handleResult(ok){
   }
   $("scoreNow").textContent=state.score;
   setTimeout(()=>{ if(gameEl.classList.contains("active")) nextQuestion(); }, ok?900:1700);
+}
+
+/* ============ MODE PÉDAGOGIQUE ============ */
+function chunk(arr,size){
+  const out=[];
+  for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size));
+  return out;
+}
+function shuffle(arr){ return arr.slice().sort(()=>Math.random()-0.5); }
+
+function setupPedago(){
+  const pool = ITEMS.filter(i=>state.cats.includes(i.cat)).sort((a,b)=>a.code-b.code);
+  state.pedago = { levels: chunk(pool, LEVEL_SIZE), idx:0, order:[], pos:0, correct:0 };
+  startLevel(0);
+}
+
+function startLevel(idx){
+  const p=state.pedago;
+  p.idx=idx;
+  p.order=shuffle(p.levels[idx]);
+  p.pos=0;
+  p.correct=0;
+  $("levelOverlay").classList.remove("show");
+  updatePedagoHeader();
+  nextPedagoQuestion();
+}
+
+function updatePedagoHeader(){
+  const p=state.pedago;
+  const total=p.levels[p.idx].length;
+  $("lvlTag").textContent="Niveau "+(p.idx+1)+" / "+p.levels.length;
+  $("lvlCount").textContent=Math.min(p.pos,total)+" / "+total;
+  $("lvlGood").textContent=p.correct;
+  $("lvlBar").style.width=(Math.min(p.pos,total)/total*100)+"%";
+}
+
+function nextPedagoQuestion(){
+  const p=state.pedago;
+  if(p.pos>=p.order.length){ endLevel(); return; }
+  state.answered=false;
+  state.input="";
+  state.current=p.order[p.pos];
+  state.currentType="code"; // toujours : image -> taper le code
+  $("feedback").textContent="";
+  $("feedback").className="feedback";
+  renderVisual();
+  renderRight();
+  updatePedagoHeader();
+}
+
+function endLevel(){
+  const p=state.pedago;
+  const total=p.levels[p.idx].length;
+  const pct=Math.round(p.correct/total*100);
+  const passed=(p.correct/total)>=PASS_RATIO;
+  const isLast=(p.idx>=p.levels.length-1);
+
+  $("lvlScore").textContent=p.correct+" / "+total+"  ("+pct+"%)";
+  const btns=$("lvlBtns");
+  btns.innerHTML="";
+
+  if(passed){
+    if(isLast){
+      $("lvlEmoji").textContent="🏆";
+      $("lvlTitle").textContent="Félicitations !";
+      $("lvlMsg").textContent="Vous avez terminé tous les niveaux. Vous connaissez vos codes PLU sur le bout des doigts !";
+      addLvlBtn(btns,"Recommencer depuis le début","next",()=>startLevel(0));
+    } else {
+      $("lvlEmoji").textContent="🎉";
+      $("lvlTitle").textContent="Niveau réussi !";
+      $("lvlMsg").textContent="Bien joué ! Niveau "+(p.idx+2)+" débloqué. Continuez sur votre lancée.";
+      addLvlBtn(btns,"Niveau suivant ▶","next",()=>startLevel(p.idx+1));
+      addLvlBtn(btns,"Refaire ce niveau","retry",()=>startLevel(p.idx));
+    }
+  } else {
+    $("lvlEmoji").textContent="💪";
+    $("lvlTitle").textContent="Presque !";
+    $("lvlMsg").textContent="Il faut "+Math.ceil(PASS_RATIO*total)+" bonnes réponses sur "+total+" pour débloquer la suite. Réessayez, vous y êtes presque !";
+    addLvlBtn(btns,"Réessayer ce niveau","retry",()=>startLevel(p.idx));
+  }
+  addLvlBtn(btns,"↩ Retour au menu","menu",backToMenu);
+  $("levelOverlay").classList.add("show");
+}
+
+function addLvlBtn(parent,label,cls,fn){
+  const b=document.createElement("button");
+  b.className=cls; b.textContent=label;
+  b.addEventListener("click",fn);
+  parent.appendChild(b);
+}
+
+function backToMenu(){
+  stopTimer();
+  gameEl.classList.remove("active");
+  $("levelOverlay").classList.remove("show");
+  $("pausedOverlay").classList.remove("show");
+  resultsEl.classList.remove("active");
+  menuEl.style.display="flex";
 }
 
 /* ============ TIMER ============ */
@@ -669,7 +865,10 @@ $("resumeBtn").addEventListener("click",()=>{
 });
 
 /* ----- quit / results ----- */
-$("quitBtn").addEventListener("click",endGame);
+$("quitBtn").addEventListener("click",()=>{
+  if(state.mode==="pedago"){ backToMenu(); return; }
+  endGame();
+});
 function endGame(){
   stopTimer();
   state.paused=false;
