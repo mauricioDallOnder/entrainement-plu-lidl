@@ -196,6 +196,27 @@
   .opt-btn.wrong{background:var(--bad);border-color:var(--bad);}
   .ask-q{font-weight:700;color:#222;text-align:center;font-size:16px;margin-bottom:4px;}
 
+  /* level select screen (pédagogique) */
+  .level-select{flex-direction:column;align-items:center;gap:18px;padding:30px 10px;}
+  .level-select{display:none;}
+  .level-select.show, .level-select[style*="flex"]{display:flex;}
+  .level-select h2{font-size:30px;text-align:center;}
+  .level-select p{font-size:15px;opacity:.9;text-align:center;max-width:560px;line-height:1.5;}
+  .lvl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;width:100%;max-width:760px;}
+  .lvl-tile{
+    background:#fff;color:var(--lidl-blue-dark);border:3px solid transparent;border-radius:12px;
+    padding:18px 16px;cursor:pointer;text-align:left;transition:.15s;box-shadow:0 5px 12px rgba(0,0,0,.22);
+    position:relative;
+  }
+  .lvl-tile:hover{transform:translateY(-4px);border-color:#ffe500;box-shadow:0 10px 20px rgba(0,0,0,.3);}
+  .lvl-tile .lt-num{font-size:20px;font-weight:800;color:var(--lidl-blue);}
+  .lvl-tile .lt-info{font-size:13px;color:#666;margin-top:4px;}
+  .lvl-tile.done{border-color:var(--good);}
+  .lvl-tile .lt-badge{
+    position:absolute;top:10px;right:10px;background:var(--good);color:#fff;
+    font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;
+  }
+
   /* code options (pédagogique) */
   .code-options{display:flex;flex-direction:column;gap:14px;justify-content:center;flex:1;}
   .code-opt{
@@ -344,6 +365,14 @@
     <p style="font-size:13px;opacity:.75;">Mode sélectionné : <b id="modeLabel">Trouver le code</b></p>
   </div>
 
+  <!-- ===== SÉLECTION DE NIVEAU (pédagogique) ===== -->
+  <div id="levelSelect" class="level-select" style="display:none;">
+    <h2>🎓 Mode pédagogique</h2>
+    <p>Choisissez le niveau que vous voulez réviser. Vous pouvez revenir ici à tout moment.</p>
+    <div class="lvl-grid" id="lvlGrid"></div>
+    <button class="pause-btn" id="lvlSelectBack" style="padding:12px 30px;">↩ Retour au menu</button>
+  </div>
+
   <!-- ===== GAME ===== -->
   <div id="game" class="game">
     <div class="game-head">
@@ -445,7 +474,7 @@ const ITEMS = [
   {code:3,  name:"Concombre",              cat:"fl", img:"comcombre.webp"},
   {code:4,  name:"Courgette vrac",         cat:"fl", img:"Courgette_vrac.webp"},
   {code:5,  name:"Melon charentais",       cat:"fl", img:"Melon_charentais.jpg"},
-  {code:6,  name:"Avocat",                 cat:"fl", img:"avocato.webp"},
+  {code:6,  name:"Avocat",                 cat:"fl", img:""},
   {code:7,  name:"Batavia",                cat:"fl", img:"salade_batavia.webp"},
   {code:8,  name:"Kiwi",                    cat:"fl", img:"kiwis.jpeg"},
   {code:9,  name:"Radis",                  cat:"fl", img:"radis.jpg"},
@@ -538,26 +567,25 @@ $("startBtn").addEventListener("click",()=>{
 function startGame(){
   state.pool = ITEMS.filter(i=>state.cats.includes(i.cat));
   state.score=0; state.good=0; state.bad=0; state.q=0;
-  menuEl.style.display="none";
   resultsEl.classList.remove("active");
   $("levelOverlay").classList.remove("show");
   $("pausedOverlay").classList.remove("show");
-  gameEl.classList.add("active");
 
   if(state.mode==="pedago"){
-    // en-tête : barre de niveau, pas de chrono
-    $("timerWrap").style.display="none";
-    $("scorePill").style.display="none";
-    $("levelProgress").style.display="flex";
-    $("quitBtn").textContent="↩ Quitter le mode";
-    setupPedago();
-  } else {
-    $("timerWrap").style.display="flex";
-    $("scorePill").style.display="block";
-    $("levelProgress").style.display="none";
-    $("quitBtn").textContent="⏹ Terminer & voir le score";
-    nextQuestion();
+    setupPedago();        // construit les niveaux
+    showLevelSelect();    // l'utilisateur choisit son niveau
+    return;
   }
+
+  // modes chronométrés
+  menuEl.style.display="none";
+  $("levelSelect").style.display="none";
+  gameEl.classList.add("active");
+  $("timerWrap").style.display="flex";
+  $("scorePill").style.display="block";
+  $("levelProgress").style.display="none";
+  $("quitBtn").textContent="⏹ Terminer & voir le score";
+  nextQuestion();
 }
 
 function pickItem(){
@@ -774,7 +802,60 @@ function shuffle(arr){ return arr.slice().sort(()=>Math.random()-0.5); }
 function setupPedago(){
   const pool = ITEMS.filter(i=>state.cats.includes(i.cat)).sort((a,b)=>a.code-b.code);
   state.pedago = { levels: chunk(pool, LEVEL_SIZE), idx:0, order:[], pos:0, correct:0 };
-  startLevel(0);
+}
+
+/* ----- progression sauvegardée (sécurisée) ----- */
+function storageKey(){ return "plu_pedago_"+[...state.cats].sort().join("_"); }
+function getPassed(){
+  try{ const v=localStorage.getItem(storageKey()); return v?JSON.parse(v):[]; }
+  catch(e){ return []; }
+}
+function markPassed(idx){
+  try{
+    const arr=getPassed();
+    if(!arr.includes(idx)){ arr.push(idx); localStorage.setItem(storageKey(),JSON.stringify(arr)); }
+  }catch(e){}
+}
+
+/* ----- écran de sélection de niveau ----- */
+function showLevelSelect(){
+  stopTimer();
+  gameEl.classList.remove("active");
+  menuEl.style.display="none";
+  resultsEl.classList.remove("active");
+  $("levelOverlay").classList.remove("show");
+  $("pausedOverlay").classList.remove("show");
+  buildLevelSelect();
+  $("levelSelect").style.display="flex";
+}
+
+function buildLevelSelect(){
+  const p=state.pedago;
+  const passed=getPassed();
+  const grid=$("lvlGrid");
+  grid.innerHTML="";
+  p.levels.forEach((lvl,idx)=>{
+    const first=lvl[0].code, last=lvl[lvl.length-1].code;
+    const done=passed.includes(idx);
+    const tile=document.createElement("button");
+    tile.className="lvl-tile"+(done?" done":"");
+    tile.innerHTML=`<div class="lt-num">Niveau ${idx+1}</div>
+      <div class="lt-info">${lvl.length} articles · codes ${first}–${last}</div>
+      ${done?'<div class="lt-badge">✓ Réussi</div>':''}`;
+    tile.addEventListener("click",()=>playLevel(idx));
+    grid.appendChild(tile);
+  });
+}
+
+function playLevel(idx){
+  $("levelSelect").style.display="none";
+  $("menu").style.display="none";
+  gameEl.classList.add("active");
+  $("timerWrap").style.display="none";
+  $("scorePill").style.display="none";
+  $("levelProgress").style.display="flex";
+  $("quitBtn").textContent="↩ Choisir un niveau";
+  startLevel(idx);
 }
 
 function startLevel(idx){
@@ -823,23 +904,26 @@ function endLevel(){
   btns.innerHTML="";
 
   if(passed){
+    markPassed(p.idx);
     if(isLast){
       $("lvlEmoji").textContent="🏆";
       $("lvlTitle").textContent="Félicitations !";
       $("lvlMsg").textContent="Vous avez terminé tous les niveaux. Vous connaissez vos codes PLU sur le bout des doigts !";
-      addLvlBtn(btns,"Recommencer depuis le début","next",()=>startLevel(0));
+      addLvlBtn(btns,"📋 Choisir un niveau","next",showLevelSelect);
+      addLvlBtn(btns,"Refaire ce niveau","retry",()=>startLevel(p.idx));
     } else {
       $("lvlEmoji").textContent="🎉";
       $("lvlTitle").textContent="Niveau réussi !";
       $("lvlMsg").textContent="Bien joué ! Niveau "+(p.idx+2)+" débloqué. Continuez sur votre lancée.";
       addLvlBtn(btns,"Niveau suivant ▶","next",()=>startLevel(p.idx+1));
-      addLvlBtn(btns,"Refaire ce niveau","retry",()=>startLevel(p.idx));
+      addLvlBtn(btns,"📋 Choisir un niveau","retry",showLevelSelect);
     }
   } else {
     $("lvlEmoji").textContent="💪";
     $("lvlTitle").textContent="Presque !";
     $("lvlMsg").textContent="Il faut "+Math.ceil(PASS_RATIO*total)+" bonnes réponses sur "+total+" pour débloquer la suite. Réessayez, vous y êtes presque !";
     addLvlBtn(btns,"Réessayer ce niveau","retry",()=>startLevel(p.idx));
+    addLvlBtn(btns,"📋 Choisir un niveau","retry",showLevelSelect);
   }
   addLvlBtn(btns,"↩ Retour au menu","menu",backToMenu);
   $("levelOverlay").classList.add("show");
@@ -858,6 +942,7 @@ function backToMenu(){
   $("levelOverlay").classList.remove("show");
   $("pausedOverlay").classList.remove("show");
   resultsEl.classList.remove("active");
+  $("levelSelect").style.display="none";
   menuEl.style.display="flex";
 }
 
@@ -914,9 +999,10 @@ $("resumeBtn").addEventListener("click",()=>{
 
 /* ----- quit / results ----- */
 $("quitBtn").addEventListener("click",()=>{
-  if(state.mode==="pedago"){ backToMenu(); return; }
+  if(state.mode==="pedago"){ showLevelSelect(); return; }
   endGame();
 });
+$("lvlSelectBack").addEventListener("click",backToMenu);
 function endGame(){
   stopTimer();
   state.paused=false;
