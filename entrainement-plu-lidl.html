@@ -153,6 +153,11 @@
     object-fit:contain;border-radius:8px;
   }
   .visual .img-fallback{font-size:120px;line-height:1;}
+  .review-badge{
+    background:#ffe500;color:#5a4b00;font-weight:800;font-size:13px;
+    padding:5px 14px;border-radius:20px;margin-bottom:10px;
+    border:1px solid #d9c200;
+  }
   .visual .label{font-size:26px;font-weight:700;margin-top:14px;color:#222;}
   .visual .code-big{font-size:96px;font-weight:800;color:var(--lidl-blue);}
   .visual .code-big small{display:block;font-size:18px;color:#666;font-weight:600;letter-spacing:1px;}
@@ -474,7 +479,7 @@ const ITEMS = [
   {code:3,  name:"Concombre",              cat:"fl", img:"comcombre.webp"},
   {code:4,  name:"Courgette vrac",         cat:"fl", img:"Courgette_vrac.webp"},
   {code:5,  name:"Melon charentais",       cat:"fl", img:"Melon_charentais.jpg"},
-  {code:6,  name:"Avocat",                 cat:"fl", img:"avocato.webp"},
+  {code:6,  name:"Avocat",                 cat:"fl", img:""},
   {code:7,  name:"Batavia",                cat:"fl", img:"salade_batavia.webp"},
   {code:8,  name:"Kiwi",                    cat:"fl", img:"kiwis.jpeg"},
   {code:9,  name:"Radis",                  cat:"fl", img:"radis.jpg"},
@@ -837,10 +842,11 @@ function buildLevelSelect(){
   p.levels.forEach((lvl,idx)=>{
     const first=lvl[0].code, last=lvl[lvl.length-1].code;
     const done=passed.includes(idx);
+    const extra = idx>0 ? " + révisions" : "";
     const tile=document.createElement("button");
     tile.className="lvl-tile"+(done?" done":"");
     tile.innerHTML=`<div class="lt-num">Niveau ${idx+1}</div>
-      <div class="lt-info">${lvl.length} articles · codes ${first}–${last}</div>
+      <div class="lt-info">${lvl.length} articles${extra} · codes ${first}–${last}</div>
       ${done?'<div class="lt-badge">✓ Réussi</div>':''}`;
     tile.addEventListener("click",()=>playLevel(idx));
     grid.appendChild(tile);
@@ -861,7 +867,18 @@ function playLevel(idx){
 function startLevel(idx){
   const p=state.pedago;
   p.idx=idx;
-  p.order=shuffle(p.levels[idx]);
+  const current=p.levels[idx];
+  let order=current.slice();
+  p.reviewCodes=new Set();
+  if(idx>0){
+    // 4 ou 5 articles de révision tirés des niveaux précédents
+    const prev=p.levels.slice(0,idx).reduce((a,l)=>a.concat(l),[]);
+    const n=Math.min(prev.length, 4+Math.floor(Math.random()*2)); // 4 ou 5
+    const review=shuffle(prev).slice(0,n);
+    review.forEach(it=>p.reviewCodes.add(it.code));
+    order=order.concat(review);
+  }
+  p.order=shuffle(order);
   p.pos=0;
   p.correct=0;
   $("levelOverlay").classList.remove("show");
@@ -871,11 +888,11 @@ function startLevel(idx){
 
 function updatePedagoHeader(){
   const p=state.pedago;
-  const total=p.levels[p.idx].length;
+  const total=p.order.length;
   $("lvlTag").textContent="Niveau "+(p.idx+1)+" / "+p.levels.length;
   $("lvlCount").textContent=Math.min(p.pos,total)+" / "+total;
   $("lvlGood").textContent=p.correct;
-  $("lvlBar").style.width=(Math.min(p.pos,total)/total*100)+"%";
+  $("lvlBar").style.width=(total?Math.min(p.pos,total)/total*100:0)+"%";
 }
 
 function nextPedagoQuestion(){
@@ -888,13 +905,20 @@ function nextPedagoQuestion(){
   $("feedback").textContent="";
   $("feedback").className="feedback";
   renderVisual();
+  if(p.reviewCodes && p.reviewCodes.has(state.current.code)){
+    const v=$("visual");
+    const badge=document.createElement("div");
+    badge.className="review-badge";
+    badge.textContent="⭐ Révision (niveau précédent)";
+    v.insertBefore(badge, v.firstChild);
+  }
   renderRight();
   updatePedagoHeader();
 }
 
 function endLevel(){
   const p=state.pedago;
-  const total=p.levels[p.idx].length;
+  const total=p.order.length;
   const pct=Math.round(p.correct/total*100);
   const passed=(p.correct/total)>=PASS_RATIO;
   const isLast=(p.idx>=p.levels.length-1);
