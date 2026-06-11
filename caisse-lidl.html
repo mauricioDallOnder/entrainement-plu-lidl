@@ -221,14 +221,27 @@
     display:none;align-items:center;justify-content:center;z-index:50;
     padding:16px;
   }
+  @media (max-width:700px){
+    .overlay{align-items:flex-start;padding-top:max(16px, env(safe-area-inset-top));}
+  }
   .overlay.actif{display:flex;}
   .carte{
     background:#fff;border-radius:8px;padding:18px;
     width:100%;max-width:380px;text-align:center;
+    display:flex;flex-direction:column;
+    max-height:92dvh;overflow:hidden;
   }
-  .carte h3{font-size:16px;margin-bottom:12px;color:#222;}
-  #lecteur{width:100%;border-radius:6px;overflow:hidden;background:#000;min-height:240px;}
-  .carte .actions{display:flex;gap:8px;margin-top:14px;}
+  .carte h3{font-size:16px;margin-bottom:12px;color:#222;flex:0 0 auto;}
+  #lecteur{
+    width:100%;border-radius:6px;overflow:hidden;background:#000;
+    height:46dvh;max-height:340px;min-height:180px;
+    flex:0 1 auto;position:relative;
+  }
+  #lecteur video{
+    width:100%!important;height:100%!important;
+    object-fit:cover;display:block;
+  }
+  .carte .actions{display:flex;gap:8px;margin-top:14px;flex:0 0 auto;}
   .carte .actions .btn{flex:1;height:46px;font-size:14px;}
 
   .afficheur-poids{
@@ -241,7 +254,7 @@
   .info-balance{font-size:13px;color:#667;}
   .montant-total{font-size:34px;font-weight:800;color:var(--bleu-lidl);margin:10px 0;}
 
-  .liste-plu{max-height:55dvh;overflow-y:auto;text-align:left;font-size:14px;}
+  .liste-plu{max-height:none;flex:1 1 auto;overflow-y:auto;text-align:left;font-size:14px;min-height:0;}
   .liste-plu .cat-titre{
     font-size:12px;font-weight:700;color:#fff;background:var(--bleu-lidl);
     padding:6px 8px;position:sticky;top:0;
