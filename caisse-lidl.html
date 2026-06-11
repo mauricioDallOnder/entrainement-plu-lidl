@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Entraînement Caisse Lidl</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bleu-lidl:#0050aa;
+    --jaune:#ffd500;
+    --vert:#4caf50;
+    --rouge:#d63333;
+    --rose:#f2b8bc;
+    --bleu-qte:#5b9bd5;
+    --touche:#cfd8e3;
+    --touche-txt:#5a6a7d;
+    --fond:#eef1f5;
+    --noir:#15151e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:"Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--fond);
+    display:flex;
+    flex-direction:column;
+    user-select:none;
+  }
+
+  /* ===== Bandeau noir ===== */
+  .topbar{
+    background:var(--noir);
+    color:#fff;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:6px 12px;
+    font-size:13px;
+    flex:0 0 auto;
+  }
+  .topbar .ic{font-size:16px;opacity:.85;}
+  .topbar .heure{margin-left:auto;font-weight:600;font-size:15px;text-align:right;}
+  .topbar .devise{font-weight:600;margin-left:18px;}
+  .topbar .sous{font-size:10px;opacity:.55;font-weight:400;}
+
+  /* ===== Corps : desktop = 2 colonnes ===== */
+  .corps{
+    flex:1;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    padding:8px;
+    min-height:0;
+  }
+  .gauche{display:flex;flex-direction:column;gap:8px;min-height:0;}
+  .droite{display:flex;flex-direction:column;gap:8px;min-height:0;}
+
+  /* ===== Panneau articles ===== */
+  .panneau-articles{
+    background:#fff;
+    border:1px solid #b9c2cd;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-height:150px;
+    overflow:hidden;
+  }
+  .panneau-articles h2{
+    font-size:12px;
+    font-weight:600;
+    color:#5a6a7d;
+    padding:6px 10px;
+    border-bottom:1px solid #dde3ea;
+    flex:0 0 auto;
+  }
+  .liste-articles{flex:1;overflow-y:auto;font-size:13px;}
+  .ligne{
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:6px;
+    padding:6px 10px;
+    border-bottom:1px solid #f0f2f5;
+    cursor:pointer;
+  }
+  .ligne.sel{background:#dbe9ff;}
+  .ligne .nom{font-weight:500;color:#222;}
+  .ligne .detail{font-size:11px;color:#7a8794;}
+  .ligne .prix{font-weight:600;text-align:right;white-space:nowrap;}
+  .ligne .prix.remise{color:var(--rouge);}
+  .total-courant{
+    border-top:2px solid #b9c2cd;
+    padding:8px 10px;
+    display:flex;
+    justify-content:space-between;
+    font-weight:700;
+    font-size:16px;
+    background:#fafbfc;
+    flex:0 0 auto;
+  }
+
+  /* ===== Touches fonctions ===== */
+  .fonctions{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    grid-auto-rows:50px;
+    gap:5px;
+    flex:0 0 auto;
+  }
+  .btn{
+    border:none;
+    border-radius:3px;
+    font-size:11px;
+    font-weight:600;
+    cursor:pointer;
+    line-height:1.15;
+    padding:4px;
+    color:var(--touche-txt);
+    background:var(--touche);
+    box-shadow:0 1px 2px rgba(0,0,0,.15);
+  }
+  .btn:active{transform:translateY(1px);filter:brightness(.92);}
+  .btn.vert-clair{background:#cdeccd;color:#3c7a3c;}
+  .btn.rose{background:var(--rose);color:#8c3a40;}
+  .btn.rouge{background:var(--rouge);color:#fff;}
+  .btn.blanc{background:#fff;border:1px solid #aab4bf;color:#333;}
+  .btn.jaune{background:var(--jaune);color:#333;font-size:13px;}
+  .k-vide{background:transparent!important;box-shadow:none!important;cursor:default;border:none!important;}
+
+  /* ===== Zone de saisie ===== */
+  .zone-saisie{display:flex;gap:6px;flex:0 0 auto;}
+  .champ{
+    flex:1;
+    min-width:0;
+    border:1px solid #aab4bf;
+    background:#fff;
+    border-radius:3px;
+    font-size:15px;
+    padding:0 10px;
+    height:46px;
+    display:flex;
+    align-items:center;
+    color:#333;
+    overflow:hidden;
+    white-space:nowrap;
+  }
+  .champ .placeholder{color:#9aa6b2;font-size:12px;}
+  .btn-effacer{
+    flex:0 0 84px;height:46px;
+    background:#fff;border:1px solid #aab4bf;border-radius:3px;
+    font-size:13px;color:#5a6a7d;font-weight:600;cursor:pointer;
+  }
+  .btn-scan{
+    flex:0 0 52px;height:46px;
+    background:var(--bleu-lidl);color:#fff;border:none;border-radius:3px;
+    font-size:20px;cursor:pointer;
+  }
+
+  /* ===== Clavier ===== */
+  .clavier{
+    flex:1;
+    display:grid;
+    grid-template-columns:repeat(3,1fr) 1.1fr;
+    grid-template-rows:repeat(5,minmax(54px,1fr));
+    gap:6px;
+    min-height:300px;
+  }
+  .clavier .btn{font-size:18px;font-weight:600;}
+  .k-num{background:var(--touche);color:#5a6a7d;}
+  .k-correction{background:var(--rouge);color:#fff;font-size:12px!important;}
+  .k-abandon{background:var(--rose);color:#8c3a40;font-size:12px!important;}
+  .k-qte{background:var(--bleu-qte);color:#fff;font-size:13px!important;}
+  .k-ean{background:var(--vert);color:#1b3a1b;font-size:14px!important;}
+  .k-plu{background:var(--vert);color:#1b3a1b;font-size:14px!important;}
+  .k-total{background:var(--jaune);color:#333;font-size:15px!important;}
+
+  /* ===== MOBILE : tout en une colonne, sans chevauchement ===== */
+  @media (max-width:700px){
+    body{height:auto;min-height:100dvh;}
+    .corps{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      min-height:0;
+    }
+    .gauche,.droite{flex:0 0 auto;}
+    .panneau-articles{flex:0 0 auto;height:32dvh;min-height:170px;}
+    .clavier{min-height:0;grid-template-rows:repeat(5,56px);}
+    .fonctions{grid-auto-rows:48px;}
+  }
+
+  /* ===== Overlays ===== */
+  .overlay{
+    position:fixed;inset:0;background:rgba(10,15,25,.78);
+    display:none;align-items:center;justify-content:center;z-index:50;
+    padding:16px;
+  }
+  .overlay.actif{display:flex;}
+  .carte{
+    background:#fff;border-radius:8px;padding:18px;
+    width:100%;max-width:380px;text-align:center;
+  }
+  .carte h3{font-size:16px;margin-bottom:12px;color:#222;}
+  #lecteur{width:100%;border-radius:6px;overflow:hidden;background:#000;min-height:240px;}
+  .carte .actions{display:flex;gap:8px;margin-top:14px;}
+  .carte .actions .btn{flex:1;height:46px;font-size:14px;}
+
+  .afficheur-poids{
+    background:#101418;color:#3dff7e;
+    font-family:"Courier New",monospace;
+    font-size:38px;font-weight:700;
+    border-radius:6px;padding:14px;margin:10px 0;
+    letter-spacing:2px;
+  }
+  .info-balance{font-size:13px;color:#667;}
+  .montant-total{font-size:34px;font-weight:800;color:var(--bleu-lidl);margin:10px 0;}
+
+  .liste-plu{max-height:55dvh;overflow-y:auto;text-align:left;font-size:14px;}
+  .liste-plu .cat-titre{
+    font-size:12px;font-weight:700;color:#fff;background:var(--bleu-lidl);
+    padding:6px 8px;position:sticky;top:0;
+  }
+  .liste-plu .item{padding:8px 6px;border-bottom:1px solid #eee;cursor:pointer;display:flex;justify-content:space-between;gap:8px;}
+  .liste-plu .item:active{background:#dbe9ff;}
+  .liste-plu b{color:var(--bleu-lidl);min-width:34px;display:inline-block;}
+
+  .toast{
+    position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+    background:#222;color:#fff;padding:10px 18px;border-radius:20px;
+    font-size:13px;opacity:0;transition:opacity .25s;z-index:80;pointer-events:none;
+    max-width:90vw;text-align:center;
+  }
+  .toast.visible{opacity:1;}
+</style>
+</head>
+<body>
+
+<!-- Bandeau noir -->
+<div class="topbar">
+  <span class="ic">▤</span>
+  <span class="ic">⚿</span>
+  <span class="ic">🔍</span>
+  <span class="heure"><span id="heure">--:--</span><br><span class="sous" id="dateJour"></span></span>
+  <span class="devise">EUR</span>
+</div>
+
+<div class="corps">
+
+  <!-- GAUCHE -->
+  <div class="gauche">
+    <div class="panneau-articles">
+      <h2>Saisie des articles</h2>
+      <div class="liste-articles" id="listeArticles"></div>
+      <div class="total-courant"><span>Total</span><span id="totalCourant">0,00 €</span></div>
+    </div>
+
+    <div class="fonctions">
+      <button class="btn vert-clair" onclick="toast('Fonction de démonstration')">N° pesées<br>vidées</button>
+      <button class="btn vert-clair" onclick="toast('Fonction de démonstration')">Sac<br>papier</button>
+      <button class="btn rose" onclick="toast('Fonction de démonstration')">Divers</button>
+      <button class="btn rouge" onclick="changementTicket()">Changement<br>de ticket</button>
+      <button class="btn blanc" onclick="ouvrirListePLU()">Liste PLU</button>
+      <button class="btn blanc" onclick="toast('Vente au personnel : scanner la carte employé')">Vente au<br>personnel</button>
+      <button class="btn blanc" onclick="toast('Facture : demander les coordonnées du client')">Facture</button>
+      <button class="btn jaune" onclick="appliquerRabais()">Rabais</button>
+    </div>
+  </div>
+
+  <!-- DROITE -->
+  <div class="droite">
+    <div class="zone-saisie">
+      <div class="champ" id="champSaisie"><span class="placeholder">Scanner/saisir manuellement article</span></div>
+      <button class="btn-effacer" onclick="effacer()">Effacer</button>
+      <button class="btn-scan" onclick="ouvrirScanner()" title="Scanner avec la caméra">📷</button>
+    </div>
+
+    <div class="clavier">
+      <!-- rangée 1 -->
+      <button class="btn k-correction" onclick="correctionAnnulation()">Correction<br>Annulation</button>
+      <button class="btn k-abandon" onclick="abandonCaisse()">Abandon<br>caisse</button>
+      <button class="btn k-vide"></button>
+      <button class="btn k-qte" onclick="validerQuantite()">Quantité</button>
+      <!-- rangée 2 -->
+      <button class="btn k-num" onclick="taper('7')">7</button>
+      <button class="btn k-num" onclick="taper('8')">8</button>
+      <button class="btn k-num" onclick="taper('9')">9</button>
+      <button class="btn k-ean" onclick="validerEAN()">EAN</button>
+      <!-- rangée 3 -->
+      <button class="btn k-num" onclick="taper('4')">4</button>
+      <button class="btn k-num" onclick="taper('5')">5</button>
+      <button class="btn k-num" onclick="taper('6')">6</button>
+      <button class="btn k-plu" onclick="validerPLU()">PLU</button>
+      <!-- rangée 4 -->
+      <button class="btn k-num" onclick="taper('1')">1</button>
+      <button class="btn k-num" onclick="taper('2')">2</button>
+      <button class="btn k-num" onclick="taper('3')">3</button>
+      <button class="btn k-vide"></button>
+      <!-- rangée 5 -->
+      <button class="btn k-num" onclick="taper('0')">0</button>
+      <button class="btn k-num" onclick="taper('00')">00</button>
+      <button class="btn k-num" onclick="taper('.')">.</button>
+      <button class="btn k-total" onclick="ouvrirTotal()">TOTAL</button>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay scanner caméra -->
+<div class="overlay" id="ovScanner">
+  <div class="carte">
+    <h3>Scanner l'article</h3>
+    <div id="lecteur"></div>
+    <div class="actions">
+      <button class="btn rouge" onclick="fermerScanner()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay balance -->
+<div class="overlay" id="ovBalance">
+  <div class="carte">
+    <h3 id="balanceTitre">Balance</h3>
+    <div class="afficheur-poids" id="poidsAffiche">0.000 kg</div>
+    <div class="info-balance" id="balanceInfo">Posez l'article sur la balance…</div>
+    <div class="actions">
+      <button class="btn blanc" onclick="fermerBalance()">Annuler</button>
+      <button class="btn jaune" id="btnValiderPoids" onclick="validerPoids()" disabled>Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay total / paiement -->
+<div class="overlay" id="ovTotal">
+  <div class="carte">
+    <h3>Total à payer</h3>
+    <div class="montant-total" id="montantTotal">0,00 €</div>
+    <div class="actions">
+      <button class="btn blanc" onclick="fermerOverlay('ovTotal')">Retour</button>
+      <button class="btn vert-clair" onclick="payer('Espèces')">Espèces</button>
+      <button class="btn jaune" onclick="payer('Carte')">Carte</button>
+    </div>
+  </div>
+</div>
+
+<!-- Overlay Liste PLU -->
+<div class="overlay" id="ovPLU">
+  <div class="carte">
+    <h3>Liste PLU</h3>
+    <div class="liste-plu" id="contenuListePLU"></div>
+    <div class="actions">
+      <button class="btn blanc" onclick="fermerOverlay('ovPLU')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   PLU — tes codes d'entraînement Lidl
+   cat:"fl"  = fruits & légumes
+   cat:"pain"= boulangerie / viennoiserie
+   ========================================================= */
+const ITEMS = [
+  // Fruits & Légumes
+  {code:1,  name:"Banane vrac",            cat:"fl"},
+  {code:2,  name:"Tomate ronde grappe",    cat:"fl"},
+  {code:3,  name:"Concombre",              cat:"fl"},
+  {code:4,  name:"Courgette vrac",         cat:"fl"},
+  {code:5,  name:"Melon charentais",       cat:"fl"},
+  {code:6,  name:"Avocat",                 cat:"fl"},
+  {code:7,  name:"Batavia",                cat:"fl"},
+  {code:8,  name:"Kiwi",                   cat:"fl"},
+  {code:9,  name:"Radis",                  cat:"fl"},
+  {code:10, name:"Raisin blanc vrac",      cat:"fl"},
+  {code:11, name:"Aubergine vrac",         cat:"fl"},
+  {code:12, name:"Chou-fleur",             cat:"fl"},
+  {code:13, name:"Poire vrac",             cat:"fl"},
+  {code:14, name:"Mangue",                 cat:"fl"},
+  {code:15, name:"Pomelo",                 cat:"fl"},
+  {code:16, name:"Ananas",                 cat:"fl"},
+  {code:17, name:"Nectarine",              cat:"fl"},
+  {code:18, name:"Pomme bicolore vrac",    cat:"fl"},
+  {code:19, name:"Pomme golden vrac",      cat:"fl"},
+  {code:20, name:"Patate douce vrac",      cat:"fl"},
+  {code:108,name:"Carotte vrac",           cat:"fl"},
+  {code:114,name:"Raisin rosé vrac",       cat:"fl"},
+  {code:155,name:"Mandarine Orri vrac",    cat:"fl"},
+  {code:165,name:"Kiwi gold",              cat:"fl"},
+  {code:170,name:"Pomme Pink Lady",        cat:"fl"},
+  {code:234,name:"Tomate charnue vrac",    cat:"fl"},
+  // Pains
+  {code:50, name:"Pain au chocolat",       cat:"pain"},
+  {code:51, name:"Beignet chocolat",       cat:"pain"},
+  {code:52, name:"Croissant",              cat:"pain"},
+  {code:53, name:"Ciabatta classic",       cat:"pain"},
+  {code:54, name:"Pain aux noix",          cat:"pain"},
+  {code:55, name:"Pain spécial graines céréales", cat:"pain"},
+  {code:56, name:"Pain complet",           cat:"pain"},
+  {code:57, name:"Suisse au chocolat",     cat:"pain"},
+  {code:58, name:"Barchetta 4 fromages",   cat:"pain"},
+  {code:59, name:"Escargot aux raisins",   cat:"pain"},
+  {code:508,name:"Pastel de Nata",         cat:"pain"},
+  {code:606,name:"Mini beignet",           cat:"pain"},
+  {code:627,name:"Croustille",             cat:"pain"},
+  {code:635,name:"Donut",                  cat:"pain"},
+  {code:640,name:"Feuilleté Vache qui rit",cat:"pain"},
+  {code:664,name:"Empanadas bœuf",         cat:"pain"},
+];
+
+/* Articles vendus À LA PIÈCE (pas de balance).
+   Tous les autres "fl" passent par la balance (prix/kg).
+   Les pains sont toujours à la pièce. */
+const A_LA_PIECE = new Set([3,5,6,7,9,12,14,15,16]); // concombre, melon, avocat, batavia, radis, chou-fleur, mangue, pomelo, ananas
+
+/* Prix automatique et stable (le même code donne toujours le même prix) */
+function hash(s){ let h=0; for(const c of String(s)) h=(h*31+c.charCodeAt(0))>>>0; return h; }
+function prixDe(item){
+  const h = hash("plu"+item.code);
+  if(item.cat==="pain") return Math.round((0.39 + (h%110)/100)*100)/100;   // 0,39–1,49 €
+  if(estAuKilo(item))   return Math.round((0.99 + (h%300)/100)*100)/100;   // 0,99–3,99 €/kg
+  return Math.round((0.49 + (h%250)/100)*100)/100;                          // pièce 0,49–2,99 €
+}
+function estAuKilo(item){ return item.cat==="fl" && !A_LA_PIECE.has(item.code); }
+
+const PLU = {};
+ITEMS.forEach(it=>{ PLU[it.code] = { nom:it.name, cat:it.cat, prix:prixDe(it), auKilo:estAuKilo(it) }; });
+
+/* ================= État ================= */
+let ticket = [];
+let saisie = "";
+let quantiteEnAttente = 1;
+let ligneSelectionnee = -1;
+let scanner = null;
+let scanVerrou = false;
+
+/* ================= Horloge ================= */
+function majHeure(){
+  const d = new Date();
+  document.getElementById("heure").textContent =
+    d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+  document.getElementById("dateJour").textContent =
+    d.toLocaleDateString("fr-FR",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"});
+}
+majHeure(); setInterval(majHeure,10000);
+
+/* ================= Bip ================= */
+function bip(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type="square"; o.frequency.value=2200;
+    g.gain.setValueAtTime(0.25, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.12);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime+0.13);
+  }catch(e){}
+}
+
+/* ================= Saisie clavier ================= */
+function taper(c){
+  if(saisie.length>=13) return;
+  saisie += c;
+  majChamp();
+}
+function effacer(){ saisie=""; majChamp(); }
+function majChamp(){
+  const ch = document.getElementById("champSaisie");
+  ch.innerHTML = saisie
+    ? saisie
+    : '<span class="placeholder">Scanner/saisir manuellement article</span>';
+}
+
+/* ================= Quantité ================= */
+function validerQuantite(){
+  const n = parseInt(saisie,10);
+  if(!n || n<1 || n>99){ toast("Tapez d'abord un nombre (ex : 3) puis Quantité"); return; }
+  quantiteEnAttente = n;
+  toast("Quantité ×"+n+" — scannez ou tapez l'article");
+  effacer();
+}
+
+/* ================= EAN ================= */
+function validerEAN(){
+  if(!saisie){ toast("Tapez un code-barres puis EAN, ou utilisez 📷"); return; }
+  ajouterArticleEAN(saisie);
+  effacer();
+}
+function ajouterArticleEAN(code){
+  bip();
+  const prix = Math.round((0.45 + (hash(code)%900)/100)*100)/100;
+  ajouterLigne({ nom:"Article "+String(code).slice(-6), prixUnit:prix, qte:quantiteEnAttente });
+  quantiteEnAttente = 1;
+}
+
+/* ================= PLU ================= */
+function validerPLU(){
+  if(!saisie){ toast("Tapez un code PLU puis PLU (ou Liste PLU)"); return; }
+  const code = String(parseInt(saisie,10));
+  const p = PLU[code];
+  effacer();
+  if(!p){
+    bip();
+    ajouterLigne({ nom:"PLU "+code, prixUnit:Math.round((0.45+(hash("x"+code)%600)/100)*100)/100, qte:quantiteEnAttente });
+    quantiteEnAttente = 1;
+    return;
+  }
+  if(p.auKilo){ ouvrirBalance(code); }
+  else{
+    bip();
+    ajouterLigne({ nom:p.nom, prixUnit:p.prix, qte:quantiteEnAttente });
+    quantiteEnAttente = 1;
+  }
+}
+
+function ouvrirListePLU(){
+  const cont = document.getElementById("contenuListePLU");
+  cont.innerHTML = "";
+  const cats = [["fl","Fruits & Légumes"],["pain","Pains & Viennoiseries"]];
+  cats.forEach(([cat,titre])=>{
+    const t = document.createElement("div");
+    t.className = "cat-titre"; t.textContent = titre;
+    cont.appendChild(t);
+    Object.entries(PLU).filter(([,p])=>p.cat===cat)
+      .sort((a,b)=>Number(a[0])-Number(b[0]))
+      .forEach(([code,p])=>{
+        const d = document.createElement("div");
+        d.className = "item";
+        d.innerHTML = `<span><b>${code}</b> ${p.nom}</span><span>${fmt(p.prix)}${p.auKilo?"/kg ⚖️":""}</span>`;
+        d.onclick = ()=>{ fermerOverlay("ovPLU"); saisie=code; majChamp(); validerPLU(); };
+        cont.appendChild(d);
+      });
+  });
+  document.getElementById("ovPLU").classList.add("actif");
+}
+
+/* ================= Balance simulée ================= */
+let pluEnPesee = null, timerBalance = null, poidsFinal = 0;
+function ouvrirBalance(code){
+  pluEnPesee = code;
+  const p = PLU[code];
+  document.getElementById("balanceTitre").textContent = "Balance — "+p.nom+" ("+fmt(p.prix)+"/kg)";
+  document.getElementById("poidsAffiche").textContent = "0.000 kg";
+  document.getElementById("balanceInfo").textContent = "Posez l'article sur la balance…";
+  document.getElementById("btnValiderPoids").disabled = true;
+  document.getElementById("ovBalance").classList.add("actif");
+
+  poidsFinal = Math.round((0.15 + Math.random()*1.85)*1000)/1000;
+  let etapes = 0;
+  clearInterval(timerBalance);
+  timerBalance = setInterval(()=>{
+    etapes++;
+    const bruit = Math.max(0,(8-etapes))/8 * 0.25;
+    const affiche = Math.max(0, poidsFinal + (Math.random()-0.5)*bruit);
+    document.getElementById("poidsAffiche").textContent = affiche.toFixed(3)+" kg";
+    if(etapes>=10){
+      clearInterval(timerBalance);
+      document.getElementById("poidsAffiche").textContent = poidsFinal.toFixed(3)+" kg";
+      document.getElementById("balanceInfo").textContent = "Poids stabilisé ✓";
+      document.getElementById("btnValiderPoids").disabled = false;
+      bip();
+    }
+  },180);
+}
+function validerPoids(){
+  const p = PLU[pluEnPesee];
+  ajouterLigne({ nom:p.nom, prixUnit:p.prix, qte:1, poids:poidsFinal });
+  fermerBalance();
+}
+function fermerBalance(){
+  clearInterval(timerBalance);
+  document.getElementById("ovBalance").classList.remove("actif");
+  pluEnPesee = null;
+}
+
+/* ================= Ticket ================= */
+function ajouterLigne(art){
+  const total = art.poids ? art.prixUnit*art.poids : art.prixUnit*art.qte;
+  ticket.push({ ...art, total: Math.round(total*100)/100, remise:0 });
+  ligneSelectionnee = ticket.length-1;
+  rendreTicket();
+}
+function rendreTicket(){
+  const c = document.getElementById("listeArticles");
+  c.innerHTML = "";
+  ticket.forEach((a,i)=>{
+    const d = document.createElement("div");
+    d.className = "ligne"+(i===ligneSelectionnee?" sel":"");
+    let detail = "";
+    if(a.poids) detail = a.poids.toFixed(3)+" kg × "+fmt(a.prixUnit)+"/kg";
+    else if(a.qte>1) detail = a.qte+" × "+fmt(a.prixUnit);
+    if(a.remise) detail += (detail?" · ":"")+"rabais −"+a.remise+"%";
+    d.innerHTML = `<div><div class="nom">${a.nom}</div>${detail?`<div class="detail">${detail}</div>`:""}</div>
+                   <div class="prix${a.remise?" remise":""}">${fmt(montantLigne(a))}</div>`;
+    d.onclick = ()=>{ ligneSelectionnee=i; rendreTicket(); };
+    c.appendChild(d);
+  });
+  c.scrollTop = c.scrollHeight;
+  document.getElementById("totalCourant").textContent = fmt(totalTicket());
+}
+function montantLigne(a){ return Math.round(a.total*(1 - a.remise/100)*100)/100; }
+function totalTicket(){ return ticket.reduce((s,a)=>s+montantLigne(a),0); }
+function fmt(n){ return n.toFixed(2).replace(".",",")+" €"; }
+
+/* ================= Fonctions caisse ================= */
+function correctionAnnulation(){
+  if(!ticket.length){ toast("Aucun article à annuler"); return; }
+  const i = ligneSelectionnee>=0 ? ligneSelectionnee : ticket.length-1;
+  const retire = ticket.splice(i,1)[0];
+  ligneSelectionnee = ticket.length-1;
+  rendreTicket();
+  toast("Annulé : "+retire.nom);
+}
+function abandonCaisse(){
+  if(!ticket.length){ toast("Ticket déjà vide"); return; }
+  if(confirm("Abandonner la transaction en cours ?")){
+    ticket=[]; ligneSelectionnee=-1; rendreTicket(); toast("Transaction abandonnée");
+  }
+}
+function changementTicket(){
+  ticket=[]; ligneSelectionnee=-1; quantiteEnAttente=1; effacer(); rendreTicket();
+  toast("Nouveau ticket");
+}
+function appliquerRabais(){
+  if(ligneSelectionnee<0){ toast("Sélectionnez d'abord une ligne du ticket"); return; }
+  const pct = parseInt(saisie,10) || 10;
+  if(pct<1 || pct>90){ toast("Rabais entre 1 et 90 %"); return; }
+  ticket[ligneSelectionnee].remise = pct;
+  effacer(); rendreTicket();
+  toast("Rabais −"+pct+"% appliqué");
+}
+function ouvrirTotal(){
+  if(!ticket.length){ toast("Ticket vide"); return; }
+  document.getElementById("montantTotal").textContent = fmt(totalTicket());
+  document.getElementById("ovTotal").classList.add("actif");
+}
+function payer(mode){
+  fermerOverlay("ovTotal");
+  toast("Paiement "+mode+" : "+fmt(totalTicket())+" ✓ Merci !");
+  setTimeout(changementTicket, 900);
+}
+function fermerOverlay(id){ document.getElementById(id).classList.remove("actif"); }
+
+/* ================= Scanner caméra ================= */
+function ouvrirScanner(){
+  document.getElementById("ovScanner").classList.add("actif");
+  scanVerrou = false;
+  scanner = new Html5Qrcode("lecteur");
+  scanner.start(
+    { facingMode:"environment" },
+    { fps:10, qrbox:{ width:240, height:140 } },
+    (texte)=>{
+      if(scanVerrou) return;
+      scanVerrou = true;
+      ajouterArticleEAN(texte);
+      setTimeout(()=>{ scanVerrou=false; }, 1500);
+    }
+  ).catch(err=>{
+    toast("Caméra indisponible : "+err);
+    fermerScanner();
+  });
+}
+function fermerScanner(){
+  document.getElementById("ovScanner").classList.remove("actif");
+  if(scanner){
+    scanner.stop().then(()=>scanner.clear()).catch(()=>{});
+    scanner = null;
+  }
+}
+
+/* ================= Toast ================= */
+let toastTimer=null;
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove("visible"), 2200);
+}
+
+rendreTicket();
+</script>
+</body>
+</html>
