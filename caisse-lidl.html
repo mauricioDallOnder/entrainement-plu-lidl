@@ -77,12 +77,19 @@
   .liste-articles{flex:1;overflow-y:auto;font-size:13px;}
   .ligne{
     display:grid;
-    grid-template-columns:1fr auto;
-    gap:6px;
+    grid-template-columns:1fr auto auto;
+    align-items:center;
+    gap:8px;
     padding:6px 10px;
     border-bottom:1px solid #f0f2f5;
     cursor:pointer;
   }
+  .suppr{
+    border:none;background:#f6dada;color:#a33333;
+    width:30px;height:30px;border-radius:4px;
+    font-size:14px;font-weight:700;cursor:pointer;flex:0 0 auto;
+  }
+  .suppr:active{background:var(--rouge);color:#fff;}
   .ligne.sel{background:#dbe9ff;}
   .ligne .nom{font-weight:500;color:#222;}
   .ligne .detail{font-size:11px;color:#7a8794;}
@@ -173,6 +180,25 @@
   .k-ean{background:var(--vert);color:#1b3a1b;font-size:14px!important;}
   .k-plu{background:var(--vert);color:#1b3a1b;font-size:14px!important;}
   .k-total{background:var(--jaune);color:#333;font-size:15px!important;}
+
+  /* ===== Mode de paiement ===== */
+  .paiement{
+    flex:1;
+    display:none;
+    flex-direction:column;
+    gap:10px;
+    min-height:300px;
+  }
+  .paiement.actif{display:flex;}
+  .paiement-entete{
+    background:#fff;border:1px solid #b9c2cd;border-radius:3px;
+    padding:14px;display:flex;justify-content:space-between;align-items:center;
+    font-size:16px;font-weight:600;color:#5a6a7d;
+  }
+  .paiement-entete b{font-size:26px;color:var(--bleu-lidl);}
+  .p-espece{flex:1;background:#cdeccd!important;color:#2e6b2e!important;font-size:20px!important;}
+  .p-carte{flex:1;background:var(--bleu-qte)!important;color:#fff!important;font-size:20px!important;}
+  .p-retour{flex:0 0 52px;font-size:14px!important;}
 
   /* ===== MOBILE : tout en une colonne, sans chevauchement ===== */
   @media (max-width:700px){
@@ -294,21 +320,34 @@
       <button class="btn k-num" onclick="taper('1')">1</button>
       <button class="btn k-num" onclick="taper('2')">2</button>
       <button class="btn k-num" onclick="taper('3')">3</button>
-      <button class="btn k-vide"></button>
+      <button class="btn k-total" style="grid-row:span 2;" onclick="ouvrirTotal()">TOTAL</button>
       <!-- rangée 5 -->
       <button class="btn k-num" onclick="taper('0')">0</button>
       <button class="btn k-num" onclick="taper('00')">00</button>
       <button class="btn k-num" onclick="taper('.')">.</button>
-      <button class="btn k-total" onclick="ouvrirTotal()">TOTAL</button>
+    </div>
+
+    <!-- Mode de paiement : remplace le clavier après TOTAL -->
+    <div class="paiement" id="panneauPaiement">
+      <div class="paiement-entete">
+        <span>Total à payer</span>
+        <b id="paiementMontant">0,00 €</b>
+      </div>
+      <button class="btn p-espece" onclick="payer('Espèces')">💶 Espèces</button>
+      <button class="btn p-carte" onclick="payer('Carte')">💳 Carte</button>
+      <button class="btn blanc p-retour" onclick="fermerPaiement()">⟵ Retour</button>
     </div>
   </div>
 </div>
-
-<!-- Overlay scanner caméra -->
 <div class="overlay" id="ovScanner">
   <div class="carte">
     <h3>Scanner l'article</h3>
     <div id="lecteur"></div>
+    <div id="scanDernier" style="min-height:20px;font-size:14px;font-weight:700;color:#2e7d32;margin-top:8px;"></div>
+    <div class="info-balance" style="margin-top:4px;">
+      Code-barres bien à plat, à 10–15 cm.<br>
+      iPhone : désactivez le mode silencieux pour entendre le bip.
+    </div>
     <div class="actions">
       <button class="btn rouge" onclick="fermerScanner()">Fermer</button>
     </div>
@@ -324,19 +363,6 @@
     <div class="actions">
       <button class="btn blanc" onclick="fermerBalance()">Annuler</button>
       <button class="btn jaune" id="btnValiderPoids" onclick="validerPoids()" disabled>Valider</button>
-    </div>
-  </div>
-</div>
-
-<!-- Overlay total / paiement -->
-<div class="overlay" id="ovTotal">
-  <div class="carte">
-    <h3>Total à payer</h3>
-    <div class="montant-total" id="montantTotal">0,00 €</div>
-    <div class="actions">
-      <button class="btn blanc" onclick="fermerOverlay('ovTotal')">Retour</button>
-      <button class="btn vert-clair" onclick="payer('Espèces')">Espèces</button>
-      <button class="btn jaune" onclick="payer('Carte')">Carte</button>
     </div>
   </div>
 </div>
@@ -443,17 +469,30 @@ function majHeure(){
 }
 majHeure(); setInterval(majHeure,10000);
 
-/* ================= Bip ================= */
-function bip(){
+/* ================= Bip (compatible iOS) =================
+   iOS exige que l'AudioContext soit créé/réactivé pendant un
+   geste de l'utilisateur. On le prépare au premier toucher
+   et on le réutilise pour tous les bips. */
+let audioCtx = null;
+function initAudio(){
   try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    o.type="square"; o.frequency.value=2200;
-    g.gain.setValueAtTime(0.25, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.12);
-    o.connect(g); g.connect(ctx.destination);
-    o.start(); o.stop(ctx.currentTime+0.13);
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state === "suspended") audioCtx.resume();
   }catch(e){}
+}
+document.addEventListener("touchstart", initAudio, {passive:true});
+document.addEventListener("mousedown", initAudio);
+
+function bip(){
+  initAudio();
+  if(navigator.vibrate) navigator.vibrate(80);
+  if(!audioCtx || audioCtx.state !== "running") return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type="square"; o.frequency.value=2200;
+  g.gain.setValueAtTime(0.3, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.12);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime+0.13);
 }
 
 /* ================= Saisie clavier ================= */
@@ -590,8 +629,16 @@ function rendreTicket(){
     else if(a.qte>1) detail = a.qte+" × "+fmt(a.prixUnit);
     if(a.remise) detail += (detail?" · ":"")+"rabais −"+a.remise+"%";
     d.innerHTML = `<div><div class="nom">${a.nom}</div>${detail?`<div class="detail">${detail}</div>`:""}</div>
-                   <div class="prix${a.remise?" remise":""}">${fmt(montantLigne(a))}</div>`;
+                   <div class="prix${a.remise?" remise":""}">${fmt(montantLigne(a))}</div>
+                   <button class="suppr" aria-label="Supprimer">✕</button>`;
     d.onclick = ()=>{ ligneSelectionnee=i; rendreTicket(); };
+    d.querySelector(".suppr").onclick = (ev)=>{
+      ev.stopPropagation();
+      ticket.splice(i,1);
+      ligneSelectionnee = ticket.length-1;
+      rendreTicket();
+      toast("Annulé : "+a.nom);
+    };
     c.appendChild(d);
   });
   c.scrollTop = c.scrollHeight;
@@ -612,9 +659,8 @@ function correctionAnnulation(){
 }
 function abandonCaisse(){
   if(!ticket.length){ toast("Ticket déjà vide"); return; }
-  if(confirm("Abandonner la transaction en cours ?")){
-    ticket=[]; ligneSelectionnee=-1; rendreTicket(); toast("Transaction abandonnée");
-  }
+  ticket=[]; ligneSelectionnee=-1; rendreTicket();
+  toast("Transaction abandonnée");
 }
 function changementTicket(){
   ticket=[]; ligneSelectionnee=-1; quantiteEnAttente=1; effacer(); rendreTicket();
@@ -630,11 +676,19 @@ function appliquerRabais(){
 }
 function ouvrirTotal(){
   if(!ticket.length){ toast("Ticket vide"); return; }
-  document.getElementById("montantTotal").textContent = fmt(totalTicket());
-  document.getElementById("ovTotal").classList.add("actif");
+  document.getElementById("paiementMontant").textContent = fmt(totalTicket());
+  document.querySelector(".clavier").style.display = "none";
+  document.querySelector(".zone-saisie").style.display = "none";
+  document.getElementById("panneauPaiement").classList.add("actif");
+}
+function fermerPaiement(){
+  document.getElementById("panneauPaiement").classList.remove("actif");
+  document.querySelector(".clavier").style.display = "";
+  document.querySelector(".zone-saisie").style.display = "";
 }
 function payer(mode){
-  fermerOverlay("ovTotal");
+  bip();
+  fermerPaiement();
   toast("Paiement "+mode+" : "+fmt(totalTicket())+" ✓ Merci !");
   setTimeout(changementTicket, 900);
 }
@@ -642,17 +696,48 @@ function fermerOverlay(id){ document.getElementById(id).classList.remove("actif"
 
 /* ================= Scanner caméra ================= */
 function ouvrirScanner(){
+  initAudio(); // prépare le bip pendant le geste d'ouverture
   document.getElementById("ovScanner").classList.add("actif");
+  document.getElementById("scanDernier").textContent = "";
   scanVerrou = false;
-  scanner = new Html5Qrcode("lecteur");
+
+  const formats = (typeof Html5QrcodeSupportedFormats !== "undefined") ? [
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.QR_CODE
+  ] : undefined;
+
+  scanner = new Html5Qrcode("lecteur", {
+    formatsToSupport: formats,
+    useBarCodeDetectorIfSupported: true,
+    verbose: false
+  });
+
   scanner.start(
     { facingMode:"environment" },
-    { fps:10, qrbox:{ width:240, height:140 } },
+    {
+      fps: 15,
+      /* large zone de lecture : presque toute la largeur, bande horizontale */
+      qrbox: (w,h)=>({ width: Math.floor(w*0.92), height: Math.floor(h*0.5) }),
+      /* image plus nette = lecture plus facile, même de travers */
+      videoConstraints: {
+        facingMode:"environment",
+        width:{ ideal:1920 },
+        height:{ ideal:1080 },
+        advanced:[{ focusMode:"continuous" }]
+      },
+      experimentalFeatures:{ useBarCodeDetectorIfSupported:true }
+    },
     (texte)=>{
       if(scanVerrou) return;
       scanVerrou = true;
       ajouterArticleEAN(texte);
-      setTimeout(()=>{ scanVerrou=false; }, 1500);
+      document.getElementById("scanDernier").textContent = "✓ "+texte;
+      setTimeout(()=>{ scanVerrou=false; }, 1200);
     }
   ).catch(err=>{
     toast("Caméra indisponible : "+err);
